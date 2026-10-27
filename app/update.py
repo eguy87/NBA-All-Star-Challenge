@@ -348,7 +348,7 @@ def render_html(state: dict) -> str:
         night = f'<span class="nighthr">+{t["last_night"]} last night</span>' \
             if t["last_night"] else ''
         teams_html += f"""
-        <details class="team glass{lead}"{' open' if i == 0 else ''}>
+        <details class="team glass{lead}">
           <summary class="teamhead">
             <div><span class="rank">{rank_labels[i] if i < len(rank_labels) else f"{i+1}TH"}</span>
             <h2>{t['name']}</h2>{night}</div>
