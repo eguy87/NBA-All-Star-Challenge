@@ -4,43 +4,74 @@
 <title>NBA All Star Challenge</title>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Chivo+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#101418">
+<meta name="theme-color" content="#17171A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NBA All Star">
 <link rel="apple-touch-icon" href="icon.png">
 <style>
   :root {
-    --field:#101418; --panel:#181E24; --hair:#2A333D; --led:#4ADE80;
-    --chalk:#EDF2F7; --flare:#F87171; --dim:#8A97A5; --ice:#60A5FA;
+    --field:#17171A; --panel:#2A2A2E; --hair:#8F8A80; --led:#E8A33D;
+    --chalk:#F3EAD9; --flare:#BC5A28; --dim:#8F8A80; --ice:#A9B6B8;
+    --beige:#C9BCA6;
+    --glass:linear-gradient(160deg, rgba(42,42,46,.72), rgba(42,42,46,.42));
+    --stroke:rgba(243,234,217,.14);
   }
   * { box-sizing:border-box; margin:0; }
-  body { background:var(--field); color:var(--chalk);
+  body { background:
+         radial-gradient(900px 480px at 12% -8%, rgba(232,163,61,.16), transparent 60%),
+         radial-gradient(800px 500px at 95% 110%, rgba(169,182,184,.10), transparent 60%),
+         var(--field);
+         background-attachment:fixed;
+         color:var(--chalk);
          font:16px/1.35 "Chivo Mono", ui-monospace, monospace;
          width:min(1420px, 100%); margin:0 auto; padding:26px 26px 30px; }
   h1 { font-family:"Archivo Black", system-ui, sans-serif; font-size:40px;
        letter-spacing:.5px; text-transform:uppercase; }
   .masthead { display:flex; align-items:baseline; justify-content:space-between;
-               border-bottom:4px solid var(--led); padding-bottom:10px; }
+               padding-bottom:12px; position:relative; }
+  .masthead::after { content:""; position:absolute; left:0; right:0; bottom:0;
+               height:2px; border-radius:2px;
+               background:linear-gradient(90deg, var(--led), rgba(232,163,61,0) 65%); }
   .date { color:var(--dim); font-size:16px; text-align:right; }
   .toprow { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
-  .banner { display:flex; gap:14px; align-items:center; padding:12px 16px;
-             border:1px solid var(--hair); background:var(--panel); }
+  .glass { background:var(--glass);
+           backdrop-filter:blur(16px) saturate(1.35);
+           -webkit-backdrop-filter:blur(16px) saturate(1.35);
+           border:1px solid var(--stroke); border-radius:18px;
+           box-shadow:0 10px 30px rgba(0,0,0,.45),
+                      inset 0 1px 0 rgba(255,255,255,.07); }
+  .banner { display:flex; gap:14px; align-items:center; padding:12px 16px; }
   .banner-tag { font-family:"Archivo Black",sans-serif; font-size:13px;
-                 letter-spacing:1px; padding:4px 9px; white-space:nowrap; }
+                 letter-spacing:1px; padding:4px 9px; white-space:nowrap;
+                 border-radius:6px; }
   .potn .banner-tag { background:var(--led); color:var(--field); }
   .banner-name { font-weight:700; font-size:18px; }
   .banner-team { color:var(--dim); font-size:14px; }
   .banner-line { color:var(--led); font-size:15px; }
   .nogames { color:var(--dim); justify-content:center; grid-column:1 / -1; }
+  .chartcard { margin-top:16px; padding:16px 18px 10px; }
+  .chartcard h3 { font-family:"Archivo Black",sans-serif; font-size:13px;
+                   letter-spacing:1.5px; color:var(--dim); text-transform:uppercase; }
+  .chartcard h3 span { color:var(--led); }
+  .chart-legend { display:flex; flex-wrap:wrap; gap:16px; margin:10px 0 4px;
+                  font-size:13px; }
+  .chart-legend i { display:inline-block; width:10px; height:10px;
+                     border-radius:50%; margin-right:6px; }
+  .chart svg { width:100%; height:auto; display:block; }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;
             align-items:start; }
-  .team { border:1px solid var(--hair); background:var(--panel); }
-  .teamlead { border-color:var(--led); box-shadow:0 0 0 1px var(--led); }
+  .team { overflow:hidden; }
+  .teamlead { border-color:rgba(232,163,61,.55);
+              background:linear-gradient(160deg, rgba(232,163,61,.16), rgba(42,42,46,.45));
+              box-shadow:0 0 0 1px rgba(232,163,61,.30),
+                         0 12px 34px rgba(0,0,0,.5),
+                         0 0 26px rgba(232,163,61,.10),
+                         inset 0 1px 0 rgba(255,255,255,.07); }
   .teamhead { display:flex; align-items:center; justify-content:space-between;
                padding:12px 14px 10px; cursor:pointer; list-style:none; }
   .teamhead::-webkit-details-marker { display:none; }
-  .team[open] .teamhead { border-bottom:1px solid var(--hair); }
+  .team[open] .teamhead { border-bottom:1px solid rgba(243,234,217,.10); }
   .rank { font-family:"Archivo Black",sans-serif; font-size:12px; color:var(--dim); }
   .teamlead .rank { color:var(--led); }
   .teamhead h2 { font-family:"Archivo Black",sans-serif; font-size:21px;
@@ -48,7 +79,7 @@
   .nighthr { display:block; color:var(--ice); font-size:13px; font-weight:700; }
   .total { text-align:right; }
   .led { font-weight:700; font-size:38px; color:var(--led);
-          text-shadow:0 0 14px rgba(74,222,128,.45); line-height:1; }
+          text-shadow:0 0 16px rgba(232,163,61,.55); line-height:1; }
   .totlbl { display:block; color:var(--dim); font-size:11px; margin-top:2px;
               white-space:nowrap; }
   .scorewrap { display:flex; align-items:center; gap:12px; }
@@ -56,44 +87,53 @@
               border-bottom:2px solid var(--dim); transform:rotate(45deg);
               transition:transform .18s ease; }
   .team[open] .chevron { transform:rotate(225deg); }
-  .row { display:grid; grid-template-columns:34px 1fr 150px; gap:8px;
+  .row { display:grid; grid-template-columns:34px 1fr 170px; gap:8px;
            padding:8px 14px; align-items:center;
-           border-bottom:1px solid rgba(41,64,47,.5); }
+           border-bottom:1px solid rgba(243,234,217,.08); }
+  .row:last-child { border-bottom:none; }
+  .row:hover { background:rgba(243,234,217,.04); }
   .row.empty { display:block; color:var(--dim); font-size:13px; }
   .pos { color:var(--dim); font-size:12px; }
   .mid { min-width:0; }
   .pname { display:block; font-weight:700; font-size:15.5px; }
   .pname em { font-style:normal; color:var(--dim); font-size:12px; font-weight:400; }
-  .pline { display:block; font-size:13px; color:#C9D6C6; margin-top:1px; }
+  .pline { display:block; font-size:13px; color:#C9BCA6; margin-top:1px; }
   .nightpill { background:var(--led); color:var(--field); font-weight:700;
-             font-size:11px; padding:1px 7px; margin-left:7px; border-radius:2px; }
+             font-size:11px; padding:1px 7px; margin-left:7px; border-radius:2px;
+             white-space:nowrap; }
   .phr { text-align:right; font-weight:700; font-size:20px; color:var(--ice); }
   .phr em { display:block; font-style:normal; color:var(--dim); font-size:11px;
-              font-weight:400; }
+              font-weight:400; white-space:nowrap; }
   .tabs { display:flex; gap:8px; margin-top:14px; }
   .tabbtn { font:700 14px "Chivo Mono",monospace; letter-spacing:.5px;
-             background:var(--panel); color:var(--dim); border:1px solid var(--hair);
-             padding:8px 18px; cursor:pointer; }
-  .tabbtn.active { color:var(--field); background:var(--led); border-color:var(--led); }
+             background:var(--glass); color:var(--dim); border:1px solid var(--stroke);
+             padding:8px 18px; cursor:pointer; border-radius:999px;
+             backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+  .tabbtn.active { color:var(--field);
+             background:linear-gradient(160deg,#F0B45C,var(--led));
+             border-color:var(--led); box-shadow:0 4px 16px rgba(232,163,61,.35); }
   .tabpane { display:none; }
   .tabpane.active { display:block; }
   .statsbar { display:flex; gap:10px; margin-top:14px; }
   .statsbar input, .statsbar select {
-    font:14px "Chivo Mono",monospace; color:var(--chalk); background:var(--panel);
-    border:1px solid var(--hair); padding:8px 12px; }
+    font:14px "Chivo Mono",monospace; color:var(--chalk);
+    background:rgba(42,42,46,.55); border:1px solid var(--stroke);
+    padding:8px 12px; border-radius:10px;
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
   .statsbar input { flex:1; max-width:360px; }
-  .tablewrap { overflow-x:auto; margin-top:10px; border:1px solid var(--hair); }
-  .statstable { width:100%; border-collapse:collapse; background:var(--panel);
-                 font-size:14px; }
+  .tablewrap { overflow-x:auto; margin-top:10px; }
+  .statstable { width:100%; border-collapse:collapse; font-size:14px;
+                 background:transparent; }
   .statstable th { font-family:"Archivo Black",sans-serif; font-size:11px;
                     letter-spacing:1px; color:var(--dim); text-align:left;
-                    padding:10px 12px; border-bottom:2px solid var(--hair);
+                    padding:10px 12px; border-bottom:2px solid rgba(243,234,217,.12);
                     cursor:pointer; white-space:nowrap; user-select:none; }
   .statstable th.sorted { color:var(--led); }
   .statstable th.sorted::after { content:" ▲"; font-size:9px; }
   .statstable th.sorted.desc::after { content:" ▼"; }
-  .statstable td { padding:8px 12px; border-bottom:1px solid rgba(42,51,61,.5);
+  .statstable td { padding:8px 12px; border-bottom:1px solid rgba(243,234,217,.07);
                     color:var(--chalk); }
+  .statstable tr:hover td { background:rgba(243,234,217,.03); }
   .statstable td.n { text-align:right; font-weight:700; }
   .statstable td.pracol { color:var(--ice); }
   footer { color:var(--dim); font-size:12px; margin-top:14px; text-align:center; }
@@ -104,11 +144,16 @@
     .masthead { flex-direction:column; gap:2px; }
     .date { text-align:left; }
     .led { font-size:34px; }
+    .banner { flex-direction:column; align-items:flex-start; gap:8px; }
+    .row { grid-template-columns:26px 1fr 64px; }
+    .phr { font-size:17px; }
+    .phr em { display:none; }
+    .pline { font-size:12px; }
   }
 </style></head><body>
   <div class="masthead">
     <h1>NBA All Star Challenge</h1>
-    <div class="date">Saturday, October 24<br>points + rebounds + assists</div>
+    <div class="date">Monday, October 26<br>points + rebounds + assists</div>
   </div>
   <nav class="tabs">
     <button class="tabbtn active" onclick="showTab('tab-main', this)">Dashboard</button>
@@ -116,12 +161,13 @@
   </nav>
   <div id="tab-main" class="tabpane active">
     <div class="toprow">
-    <div class="banner nogames">No games last night — scoreboard unchanged.</div>
+    <div class="banner glass nogames">No games last night — scoreboard unchanged.</div>
     
     </div>
+    
     <div class="grid2">
     
-        <details class="team teamlead" open>
+        <details class="team glass teamlead" open>
           <summary class="teamhead">
             <div><span class="rank">1ST</span>
             <h2>Team 1</h2></div>
@@ -133,7 +179,7 @@
           </summary>
           <div class="roster"><div class="row empty">Roster not set yet — add players in config/league.json.</div></div>
         </details>
-        <details class="team">
+        <details class="team glass">
           <summary class="teamhead">
             <div><span class="rank">2ND</span>
             <h2>Team 2</h2></div>
@@ -145,7 +191,7 @@
           </summary>
           <div class="roster"><div class="row empty">Roster not set yet — add players in config/league.json.</div></div>
         </details>
-        <details class="team">
+        <details class="team glass">
           <summary class="teamhead">
             <div><span class="rank">3RD</span>
             <h2>Team 3</h2></div>
@@ -157,7 +203,7 @@
           </summary>
           <div class="roster"><div class="row empty">Roster not set yet — add players in config/league.json.</div></div>
         </details>
-        <details class="team">
+        <details class="team glass">
           <summary class="teamhead">
             <div><span class="rank">4TH</span>
             <h2>Team 4</h2></div>
@@ -180,7 +226,7 @@
         <option value="ALL">All teams</option><option value="Team 1">Team 1</option><option value="Team 2">Team 2</option><option value="Team 3">Team 3</option><option value="Team 4">Team 4</option>
       </select>
     </div>
-    <div class="tablewrap"><table class="statstable">
+    <div class="tablewrap glass"><table class="statstable">
       <thead><tr>
         <th onclick="sortStats(0,'txt')">PLAYER</th>
         <th onclick="sortStats(1,'txt')">TEAM</th>
@@ -194,7 +240,7 @@
       <tbody id="statsbody"></tbody>
     </table></div>
   </div>
-  <footer>Updated Oct 25, 2026 09:56 AM ET &middot; data: ESPN API &middot;
+  <footer>Updated Oct 27, 2026 06:30 AM ET &middot; data: ESPN API &middot;
   scoring: PTS + REB + AST, running total — most PRA at season end wins</footer>
 <script>
 function showTab(id, btn) {

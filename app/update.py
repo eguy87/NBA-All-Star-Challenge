@@ -163,6 +163,21 @@ def build_state(league: dict, history: dict, game_date: str) -> dict:
         })
     teams.sort(key=lambda t: t["total"], reverse=True)
 
+    # Season trend: cumulative PRA per team, one point per processed date.
+    trend_dates = sorted(history.get("dates", []))
+    trend = {"dates": trend_dates, "teams": []}
+    for team in league["teams"]:
+        vals, running = [], 0
+        for d in trend_dates:
+            day = 0
+            for p in team["players"]:
+                for g in history["players"].get(p["name"], {}).get("games", []):
+                    if g["date"] == d:
+                        day += g["pra"]
+            running += day
+            vals.append(running)
+        trend["teams"].append({"name": team["name"], "values": vals})
+
     potn = max(played, key=lambda p: p["line"]["pra"], default=None)
     if potn and potn["line"]["pra"] <= 0:
         potn = None
@@ -174,10 +189,80 @@ def build_state(league: dict, history: dict, game_date: str) -> dict:
         "teams": teams,
         "potn": potn,
         "any_games": bool(played),
+        "trend": trend,
     }
 
 
 # -------------------------------------------------------------- rendering ---
+
+CHART_COLORS = ["#E8A33D", "#A9B6B8", "#BC5A28", "#F3EAD9"]
+
+
+def render_trend(trend: dict) -> str:
+    """Season-trend chart: cumulative PRA per team, dependency-free SVG."""
+    dates = trend.get("dates", [])
+    teams = [t for t in trend.get("teams", []) if t.get("values")]
+    if not dates or not teams or not any(
+            any(v > 0 for v in t["values"]) for t in teams):
+        return ""
+    W, H, PL, XR, PB = 900, 260, 46, 64, 30
+    top = 14
+    vmax = max(max(t["values"]) for t in teams)
+    step = 10 ** (len(str(max(vmax, 1))) - 1)
+    vmax_r = ((vmax + step - 1) // step) * step
+    n = len(dates)
+    xs = [PL + i * (W - PL - XR) / max(n - 1, 1) for i in range(n)]
+
+    def y(v):
+        return top + (H - PB - top) * (1 - v / vmax_r)
+
+    grid = ""
+    for frac in (0, 0.5, 1):
+        gy = y(vmax_r * frac)
+        grid += (f'<line x1="{PL}" y1="{gy:.1f}" x2="{W - XR}" y2="{gy:.1f}" '
+                 f'stroke="rgba(243,234,217,.10)" stroke-width="1"/>'
+                 f'<text x="{PL - 8}" y="{gy + 4:.1f}" fill="#8F8A80" '
+                 f'font-size="11" text-anchor="end">{int(vmax_r * frac)}</text>')
+    xlabels = ""
+    for i, d in enumerate(dates):
+        lbl = datetime.strptime(d, "%Y-%m-%d").strftime("%b %d")
+        xlabels += (f'<text x="{xs[i]:.1f}" y="{H - 8}" fill="#8F8A80" '
+                    f'font-size="11" text-anchor="middle">{lbl}</text>')
+    lines = ""
+    end_labels = []
+    for ti, t in enumerate(teams):
+        color = CHART_COLORS[ti % len(CHART_COLORS)]
+        pts = " ".join(f"{xs[i]:.1f},{y(v):.1f}"
+                       for i, v in enumerate(t["values"]))
+        lines += (f'<polyline points="{pts}" fill="none" stroke="{color}" '
+                  f'stroke-width="2.5" stroke-linejoin="round" '
+                  f'stroke-linecap="round"/>')
+        for i, v in enumerate(t["values"]):
+            lines += (f'<circle cx="{xs[i]:.1f}" cy="{y(v):.1f}" r="3.5" '
+                      f'fill="{color}"/>')
+        end_labels.append((y(t["values"][-1]), color, t["values"][-1]))
+    # De-collide the end labels: keep at least 16px between them.
+    end_labels.sort(key=lambda e: e[0])
+    for i in range(1, len(end_labels)):
+        if end_labels[i][0] - end_labels[i - 1][0] < 16:
+            end_labels[i] = (end_labels[i - 1][0] + 16,
+                             end_labels[i][1], end_labels[i][2])
+    for ly, color, val in end_labels:
+        lines += (f'<text x="{xs[-1] + 8:.1f}" y="{ly + 4:.1f}" '
+                  f'fill="{color}" font-size="12" font-weight="bold">'
+                  f'{val}</text>')
+    legend = "".join(
+        f'<span><i style="background:{CHART_COLORS[i % len(CHART_COLORS)]}">'
+        f'</i>{t["name"]}</span>' for i, t in enumerate(teams))
+    return f"""
+    <div class="chartcard glass">
+      <h3>Season trend <span>&mdash; cumulative PRA</span></h3>
+      <div class="chart-legend">{legend}</div>
+      <div class="chart"><svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">
+      {grid}{lines}{xlabels}
+      </svg></div>
+    </div>"""
+
 
 def fmt_line(line: dict | None) -> str:
     if not line:
@@ -196,7 +281,7 @@ def render_html(state: dict) -> str:
         if not p:
             return ""
         return f"""
-        <div class="banner {cls}">
+        <div class="banner glass {cls}">
           <span class="banner-tag">{tag}</span>
           <div><span class="banner-name">{p['name']}</span>
           <span class="banner-team">{p['team_name']}</span><br>
@@ -228,7 +313,7 @@ def render_html(state: dict) -> str:
         <option value="ALL">All teams</option>{team_opts}
       </select>
     </div>
-    <div class="tablewrap"><table class="statstable">
+    <div class="tablewrap glass"><table class="statstable">
       <thead><tr>
         <th onclick="sortStats(0,'txt')">PLAYER</th>
         <th onclick="sortStats(1,'txt')">TEAM</th>
@@ -263,7 +348,7 @@ def render_html(state: dict) -> str:
         night = f'<span class="nighthr">+{t["last_night"]} last night</span>' \
             if t["last_night"] else ''
         teams_html += f"""
-        <details class="team{lead}"{' open' if i == 0 else ''}>
+        <details class="team glass{lead}"{' open' if i == 0 else ''}>
           <summary class="teamhead">
             <div><span class="rank">{rank_labels[i] if i < len(rank_labels) else f"{i+1}TH"}</span>
             <h2>{t['name']}</h2>{night}</div>
@@ -276,8 +361,10 @@ def render_html(state: dict) -> str:
           <div class="roster">{rows}</div>
         </details>"""
 
-    no_games = ('<div class="banner nogames">No games last night — '
+    no_games = ('<div class="banner glass nogames">No games last night — '
                 'scoreboard unchanged.</div>') if not state["any_games"] else ""
+
+    chart_html = render_trend(state.get("trend", {}))
 
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -285,43 +372,74 @@ def render_html(state: dict) -> str:
 <title>{state['league_name']}</title>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Chivo+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#101418">
+<meta name="theme-color" content="#17171A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NBA All Star">
 <link rel="apple-touch-icon" href="icon.png">
 <style>
   :root {{
-    --field:#101418; --panel:#181E24; --hair:#2A333D; --led:#4ADE80;
-    --chalk:#EDF2F7; --flare:#F87171; --dim:#8A97A5; --ice:#60A5FA;
+    --field:#17171A; --panel:#2A2A2E; --hair:#8F8A80; --led:#E8A33D;
+    --chalk:#F3EAD9; --flare:#BC5A28; --dim:#8F8A80; --ice:#A9B6B8;
+    --beige:#C9BCA6;
+    --glass:linear-gradient(160deg, rgba(42,42,46,.72), rgba(42,42,46,.42));
+    --stroke:rgba(243,234,217,.14);
   }}
   * {{ box-sizing:border-box; margin:0; }}
-  body {{ background:var(--field); color:var(--chalk);
+  body {{ background:
+         radial-gradient(900px 480px at 12% -8%, rgba(232,163,61,.16), transparent 60%),
+         radial-gradient(800px 500px at 95% 110%, rgba(169,182,184,.10), transparent 60%),
+         var(--field);
+         background-attachment:fixed;
+         color:var(--chalk);
          font:16px/1.35 "Chivo Mono", ui-monospace, monospace;
          width:min(1420px, 100%); margin:0 auto; padding:26px 26px 30px; }}
   h1 {{ font-family:"Archivo Black", system-ui, sans-serif; font-size:40px;
        letter-spacing:.5px; text-transform:uppercase; }}
   .masthead {{ display:flex; align-items:baseline; justify-content:space-between;
-               border-bottom:4px solid var(--led); padding-bottom:10px; }}
+               padding-bottom:12px; position:relative; }}
+  .masthead::after {{ content:""; position:absolute; left:0; right:0; bottom:0;
+               height:2px; border-radius:2px;
+               background:linear-gradient(90deg, var(--led), rgba(232,163,61,0) 65%); }}
   .date {{ color:var(--dim); font-size:16px; text-align:right; }}
   .toprow {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }}
-  .banner {{ display:flex; gap:14px; align-items:center; padding:12px 16px;
-             border:1px solid var(--hair); background:var(--panel); }}
+  .glass {{ background:var(--glass);
+           backdrop-filter:blur(16px) saturate(1.35);
+           -webkit-backdrop-filter:blur(16px) saturate(1.35);
+           border:1px solid var(--stroke); border-radius:18px;
+           box-shadow:0 10px 30px rgba(0,0,0,.45),
+                      inset 0 1px 0 rgba(255,255,255,.07); }}
+  .banner {{ display:flex; gap:14px; align-items:center; padding:12px 16px; }}
   .banner-tag {{ font-family:"Archivo Black",sans-serif; font-size:13px;
-                 letter-spacing:1px; padding:4px 9px; white-space:nowrap; }}
+                 letter-spacing:1px; padding:4px 9px; white-space:nowrap;
+                 border-radius:6px; }}
   .potn .banner-tag {{ background:var(--led); color:var(--field); }}
   .banner-name {{ font-weight:700; font-size:18px; }}
   .banner-team {{ color:var(--dim); font-size:14px; }}
   .banner-line {{ color:var(--led); font-size:15px; }}
   .nogames {{ color:var(--dim); justify-content:center; grid-column:1 / -1; }}
+  .chartcard {{ margin-top:16px; padding:16px 18px 10px; }}
+  .chartcard h3 {{ font-family:"Archivo Black",sans-serif; font-size:13px;
+                   letter-spacing:1.5px; color:var(--dim); text-transform:uppercase; }}
+  .chartcard h3 span {{ color:var(--led); }}
+  .chart-legend {{ display:flex; flex-wrap:wrap; gap:16px; margin:10px 0 4px;
+                  font-size:13px; }}
+  .chart-legend i {{ display:inline-block; width:10px; height:10px;
+                     border-radius:50%; margin-right:6px; }}
+  .chart svg {{ width:100%; height:auto; display:block; }}
   .grid2 {{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;
             align-items:start; }}
-  .team {{ border:1px solid var(--hair); background:var(--panel); }}
-  .teamlead {{ border-color:var(--led); box-shadow:0 0 0 1px var(--led); }}
+  .team {{ overflow:hidden; }}
+  .teamlead {{ border-color:rgba(232,163,61,.55);
+              background:linear-gradient(160deg, rgba(232,163,61,.16), rgba(42,42,46,.45));
+              box-shadow:0 0 0 1px rgba(232,163,61,.30),
+                         0 12px 34px rgba(0,0,0,.5),
+                         0 0 26px rgba(232,163,61,.10),
+                         inset 0 1px 0 rgba(255,255,255,.07); }}
   .teamhead {{ display:flex; align-items:center; justify-content:space-between;
                padding:12px 14px 10px; cursor:pointer; list-style:none; }}
   .teamhead::-webkit-details-marker {{ display:none; }}
-  .team[open] .teamhead {{ border-bottom:1px solid var(--hair); }}
+  .team[open] .teamhead {{ border-bottom:1px solid rgba(243,234,217,.10); }}
   .rank {{ font-family:"Archivo Black",sans-serif; font-size:12px; color:var(--dim); }}
   .teamlead .rank {{ color:var(--led); }}
   .teamhead h2 {{ font-family:"Archivo Black",sans-serif; font-size:21px;
@@ -329,7 +447,7 @@ def render_html(state: dict) -> str:
   .nighthr {{ display:block; color:var(--ice); font-size:13px; font-weight:700; }}
   .total {{ text-align:right; }}
   .led {{ font-weight:700; font-size:38px; color:var(--led);
-          text-shadow:0 0 14px rgba(74,222,128,.45); line-height:1; }}
+          text-shadow:0 0 16px rgba(232,163,61,.55); line-height:1; }}
   .totlbl {{ display:block; color:var(--dim); font-size:11px; margin-top:2px;
               white-space:nowrap; }}
   .scorewrap {{ display:flex; align-items:center; gap:12px; }}
@@ -337,44 +455,53 @@ def render_html(state: dict) -> str:
               border-bottom:2px solid var(--dim); transform:rotate(45deg);
               transition:transform .18s ease; }}
   .team[open] .chevron {{ transform:rotate(225deg); }}
-  .row {{ display:grid; grid-template-columns:34px 1fr 150px; gap:8px;
+  .row {{ display:grid; grid-template-columns:34px 1fr 170px; gap:8px;
            padding:8px 14px; align-items:center;
-           border-bottom:1px solid rgba(41,64,47,.5); }}
+           border-bottom:1px solid rgba(243,234,217,.08); }}
+  .row:last-child {{ border-bottom:none; }}
+  .row:hover {{ background:rgba(243,234,217,.04); }}
   .row.empty {{ display:block; color:var(--dim); font-size:13px; }}
   .pos {{ color:var(--dim); font-size:12px; }}
   .mid {{ min-width:0; }}
   .pname {{ display:block; font-weight:700; font-size:15.5px; }}
   .pname em {{ font-style:normal; color:var(--dim); font-size:12px; font-weight:400; }}
-  .pline {{ display:block; font-size:13px; color:#C9D6C6; margin-top:1px; }}
+  .pline {{ display:block; font-size:13px; color:#C9BCA6; margin-top:1px; }}
   .nightpill {{ background:var(--led); color:var(--field); font-weight:700;
-             font-size:11px; padding:1px 7px; margin-left:7px; border-radius:2px; }}
+             font-size:11px; padding:1px 7px; margin-left:7px; border-radius:2px;
+             white-space:nowrap; }}
   .phr {{ text-align:right; font-weight:700; font-size:20px; color:var(--ice); }}
   .phr em {{ display:block; font-style:normal; color:var(--dim); font-size:11px;
-              font-weight:400; }}
+              font-weight:400; white-space:nowrap; }}
   .tabs {{ display:flex; gap:8px; margin-top:14px; }}
   .tabbtn {{ font:700 14px "Chivo Mono",monospace; letter-spacing:.5px;
-             background:var(--panel); color:var(--dim); border:1px solid var(--hair);
-             padding:8px 18px; cursor:pointer; }}
-  .tabbtn.active {{ color:var(--field); background:var(--led); border-color:var(--led); }}
+             background:var(--glass); color:var(--dim); border:1px solid var(--stroke);
+             padding:8px 18px; cursor:pointer; border-radius:999px;
+             backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }}
+  .tabbtn.active {{ color:var(--field);
+             background:linear-gradient(160deg,#F0B45C,var(--led));
+             border-color:var(--led); box-shadow:0 4px 16px rgba(232,163,61,.35); }}
   .tabpane {{ display:none; }}
   .tabpane.active {{ display:block; }}
   .statsbar {{ display:flex; gap:10px; margin-top:14px; }}
   .statsbar input, .statsbar select {{
-    font:14px "Chivo Mono",monospace; color:var(--chalk); background:var(--panel);
-    border:1px solid var(--hair); padding:8px 12px; }}
+    font:14px "Chivo Mono",monospace; color:var(--chalk);
+    background:rgba(42,42,46,.55); border:1px solid var(--stroke);
+    padding:8px 12px; border-radius:10px;
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }}
   .statsbar input {{ flex:1; max-width:360px; }}
-  .tablewrap {{ overflow-x:auto; margin-top:10px; border:1px solid var(--hair); }}
-  .statstable {{ width:100%; border-collapse:collapse; background:var(--panel);
-                 font-size:14px; }}
+  .tablewrap {{ overflow-x:auto; margin-top:10px; }}
+  .statstable {{ width:100%; border-collapse:collapse; font-size:14px;
+                 background:transparent; }}
   .statstable th {{ font-family:"Archivo Black",sans-serif; font-size:11px;
                     letter-spacing:1px; color:var(--dim); text-align:left;
-                    padding:10px 12px; border-bottom:2px solid var(--hair);
+                    padding:10px 12px; border-bottom:2px solid rgba(243,234,217,.12);
                     cursor:pointer; white-space:nowrap; user-select:none; }}
   .statstable th.sorted {{ color:var(--led); }}
   .statstable th.sorted::after {{ content:" ▲"; font-size:9px; }}
   .statstable th.sorted.desc::after {{ content:" ▼"; }}
-  .statstable td {{ padding:8px 12px; border-bottom:1px solid rgba(42,51,61,.5);
+  .statstable td {{ padding:8px 12px; border-bottom:1px solid rgba(243,234,217,.07);
                     color:var(--chalk); }}
+  .statstable tr:hover td {{ background:rgba(243,234,217,.03); }}
   .statstable td.n {{ text-align:right; font-weight:700; }}
   .statstable td.pracol {{ color:var(--ice); }}
   footer {{ color:var(--dim); font-size:12px; margin-top:14px; text-align:center; }}
@@ -385,6 +512,11 @@ def render_html(state: dict) -> str:
     .masthead {{ flex-direction:column; gap:2px; }}
     .date {{ text-align:left; }}
     .led {{ font-size:34px; }}
+    .banner {{ flex-direction:column; align-items:flex-start; gap:8px; }}
+    .row {{ grid-template-columns:26px 1fr 64px; }}
+    .phr {{ font-size:17px; }}
+    .phr em {{ display:none; }}
+    .pline {{ font-size:12px; }}
   }}
 </style></head><body>
   <div class="masthead">
@@ -400,6 +532,7 @@ def render_html(state: dict) -> str:
     {no_games}
     {banner('PLAYER OF THE NIGHT', 'potn', state['potn'])}
     </div>
+    {chart_html}
     <div class="grid2">
     {teams_html}
     </div>
@@ -459,10 +592,10 @@ def screenshot(html_path: Path, png_path: Path) -> None:
 
 def make_icon(png_path: Path) -> None:
     """One-time 180x180 home-screen icon."""
-    html = ("<body style='margin:0;width:180px;height:180px;background:#101418;"
+    html = ("<body style='margin:0;width:180px;height:180px;background:#17171A;"
             "display:flex;align-items:center;justify-content:center;"
-            "font:900 44px Arial'><span style='color:#4ADE80;"
-            "text-shadow:0 0 18px rgba(74,222,128,.6)'>NBA</span></body>")
+            "font:900 44px Arial'><span style='color:#E8A33D;"
+            "text-shadow:0 0 18px rgba(232,163,61,.6)'>NBA</span></body>")
     tmp = png_path.parent / "_icon.html"
     tmp.write_text(html, encoding="utf-8")
     try:
@@ -546,7 +679,7 @@ def main() -> int:
     (DOCS / "manifest.json").write_text(json.dumps({
         "name": state["league_name"], "short_name": "NBA All Star",
         "start_url": ".", "display": "standalone",
-        "background_color": "#101418", "theme_color": "#101418",
+        "background_color": "#17171A", "theme_color": "#17171A",
         "icons": [{"src": "icon.png", "sizes": "180x180", "type": "image/png"}],
     }, indent=2), encoding="utf-8")
     (DOCS / "data.json").write_text(

@@ -1,7 +1,7 @@
 {
   "league_name": "NBA All Star Challenge",
-  "game_date": "2026-10-24",
-  "generated_at": "Oct 25, 2026 09:56 AM ET",
+  "game_date": "2026-10-26",
+  "generated_at": "Oct 27, 2026 06:30 AM ET",
   "teams": [
     {
       "name": "Team 1",
@@ -29,5 +29,26 @@
     }
   ],
   "potn": null,
-  "any_games": false
+  "any_games": false,
+  "trend": {
+    "dates": [],
+    "teams": [
+      {
+        "name": "Team 1",
+        "values": []
+      },
+      {
+        "name": "Team 2",
+        "values": []
+      },
+      {
+        "name": "Team 3",
+        "values": []
+      },
+      {
+        "name": "Team 4",
+        "values": []
+      }
+    ]
+  }
 }
